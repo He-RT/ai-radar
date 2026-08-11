@@ -138,8 +138,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Block high and critical repository vulnerabilities
-        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: v0.73.0
           scan-type: fs
           scan-ref: .
           format: table
@@ -216,8 +217,9 @@ jobs:
           sbom: false
 
       - name: Block high and critical final-image vulnerabilities
-        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: v0.73.0
           scan-type: image
           image-ref: ghcr.io/${{ github.repository_owner }}/amplitude-radar-${{ matrix.service }}:${{ steps.source.outputs.source_sha }}
           format: table
@@ -226,8 +228,9 @@ jobs:
           exit-code: "1"
 
       - name: Generate the release SBOM
-        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: v0.73.0
           scan-type: image
           image-ref: ghcr.io/${{ github.repository_owner }}/amplitude-radar-${{ matrix.service }}:${{ steps.source.outputs.source_sha }}
           format: cyclonedx
