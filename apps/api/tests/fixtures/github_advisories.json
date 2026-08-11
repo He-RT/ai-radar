@@ -1,0 +1,10 @@
+[
+  {
+    "ghsa_id": "GHSA-abcd-1234-wxyz",
+    "cve_id": "CVE-2026-12345",
+    "html_url": "https://github.com/example/project/security/advisories/GHSA-abcd-1234-wxyz",
+    "summary": "Unsafe deserialization in optional loader",
+    "description": "Upgrade to the fixed release before loading untrusted artifacts.",
+    "published_at": "2026-08-12T01:30:00Z"
+  }
+]

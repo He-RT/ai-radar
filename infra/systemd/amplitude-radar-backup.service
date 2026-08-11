@@ -1,0 +1,19 @@
+[Unit]
+Description=Amplitude Radar backup archive
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=radar-deploy
+Group=radar-deploy
+WorkingDirectory=/opt/amplitude-radar
+ExecStart=/usr/bin/bash /opt/amplitude-radar/infra/scripts/backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/backups/amplitude-radar /var/lib/amplitude-radar

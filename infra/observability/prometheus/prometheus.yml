@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    service: amplitude-radar
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # The API image must expose Prometheus text metrics at /metrics without authentication
+  # on the internal app network only. Do not proxy this endpoint through Caddy.
+  - job_name: api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]

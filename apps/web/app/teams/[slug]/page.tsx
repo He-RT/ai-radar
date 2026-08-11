@@ -1,0 +1,7 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { DataModeNotice, PageIntro } from "../../../components/atlas";
+import { getRadarDataset } from "../../../data/server";
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> { return { title: `${(await params).slug} 团队空间` }; }
+export const dynamic = "force-dynamic";
+export default async function TeamPage({ params }: { params: Promise<{ slug: string }> }) { const dataset = await getRadarDataset(); const name = (await params).slug.replace(/-/g, " "); return <div className="contentPage"><DataModeNotice mode={dataset.mode} /><PageIntro eyebrow="TEAM SPACE / PRIVATE VIEW" title={`${name} 的判断板`} aside={<>公共行动：{dataset.actions.length}<br />待复核：团队本地状态</>}>团队空间将公共证据层与本地实验记录并置；团队注释不会改变公共事件的事实和评分。</PageIntro><div className="splitContent"><section><div className="sectionBar"><div><p className="eyebrow">正在推进</p><h2>行动队列</h2></div></div>{dataset.actions.length ? <div className="actionList">{dataset.actions.slice(0, 2).map((action) => <article className="actionRow" key={action.slug}><div><h2>{action.title}</h2><p>{action.outcome}</p></div><span className="duration">未分配</span><Link href={`/action/${action.slug}`} className="textLink">查看 <span>→</span></Link></article>)}</div> : <p className="inlineEmpty">当前没有可加入队列的公共行动。</p>}</section><aside className="marginNote"><h3>团队约定</h3><p>所有生产迁移都要保留回滚路径；任何外部结论必须能追溯至原始来源。</p><Link href="/settings" className="textLink">管理空间 →</Link></aside></div></div>; }

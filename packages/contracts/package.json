@@ -1,0 +1,34 @@
+{
+  "name": "@zhenfu/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Versioned public data contracts shared by the Zhenfu Radar API and web app.",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./schemas/v1/public-facts": "./schemas/v1/public-facts.schema.json",
+    "./schemas/v1/personalized-radar": "./schemas/v1/personalized-radar.schema.json",
+    "./routes/v1": "./routes/v1/routes.json",
+    "./openapi/0.1.0": "./openapi/api-0.1.0.json"
+  },
+  "files": [
+    "CHANGELOG.md",
+    "COMPATIBILITY.md",
+    "README.md",
+    "openapi",
+    "routes",
+    "schemas",
+    "scripts",
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test ../../tests/integration/contracts-runtime.test.mjs ../../tests/integration/web-route-contract.test.mjs",
+    "typecheck": "../../apps/web/node_modules/.bin/tsc -p ../../tests/integration/tsconfig.contracts.json"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}

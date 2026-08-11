@@ -1,0 +1,7 @@
+# Runtime material stays outside version control. Keep the tracked examples only.
+env/production.env
+env/development.env
+env/*.local
+env/*.generated
+backups/
+observability/grafana/data/

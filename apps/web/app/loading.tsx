@@ -1,0 +1,1 @@
+export default function Loading() { return <div className="loading" role="status" aria-live="polite"><p className="eyebrow">CALIBRATING SIGNAL</p><h1>正在校准雷达</h1><div className="loadingLine" /><p>读取事件、证据与最新快照。</p></div>; }

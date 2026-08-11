@@ -1,0 +1,378 @@
+name: Build and publish containers
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build (publishing requires an exact main-ancestor SHA)
+        required: true
+        default: main
+        type: string
+      publish:
+        description: Publish the verified images to GHCR
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve exact release source
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      release_version: ${{ steps.source.outputs.release_version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind release identity to checked-out commit
+        id: source
+        shell: bash
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+          PUBLISH_REQUESTED: ${{ inputs.publish }}
+        run: |
+          set -Eeuo pipefail
+          source_sha="$(git rev-parse --verify 'HEAD^{commit}')"
+          sha_pattern='^[a-f0-9]{40}$'
+          release_pattern='^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'
+          [[ "$source_sha" =~ $sha_pattern ]]
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            [[ "$GITHUB_REF_TYPE" == "tag" ]]
+            release_version="$GITHUB_REF_NAME"
+            [[ "$release_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]]
+          else
+            if [[ "$PUBLISH_REQUESTED" == "true" ]]; then
+              [[ "$INPUT_REF" =~ ^[a-f0-9]{40}$ ]]
+            fi
+            release_version="$source_sha"
+          fi
+
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$source_sha" origin/main
+
+          [[ "$release_version" =~ $release_pattern ]]
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+          printf 'release_version=%s\n' "$release_version" >> "$GITHUB_OUTPUT"
+
+  tests:
+    name: Test exact release source
+    needs: resolve
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.12.3"
+
+      - name: Run application and contract gates
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          uv sync --project apps/api --all-extras --locked
+          pnpm check
+          pnpm build
+
+      - name: Run source and infrastructure gates
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 tools/source_registry/validate.py
+          python3 -m unittest tools/source_registry/test_validate.py
+          find infra/scripts -type f -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n
+          docker compose --env-file infra/env/ci.env -f infra/compose/compose.development.yml config --no-path-resolution -q
+          docker compose --env-file infra/env/ci.env -f infra/compose/compose.production.yml config -q
+
+  source-scan:
+    name: Scan clean release source
+    needs: resolve
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reject implicit scanner exemptions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test ! -e .trivyignore
+          test ! -e trivy.yaml
+          test ! -e .gitleaks.toml
+          test ! -e .gitleaksignore
+
+      - name: Scan Git history for leaked secrets
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Block high and critical repository vulnerabilities
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  images:
+    name: Candidate ${{ matrix.service }}
+    needs: [resolve, tests, source-scan]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: web
+            context: .
+            dockerfile: apps/web/Dockerfile
+            target: production
+          - service: api
+            context: .
+            dockerfile: apps/api/Dockerfile
+            target: production
+          - service: worker
+            context: .
+            dockerfile: apps/api/Dockerfile
+            target: worker
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Bind release identity to checked-out commit
+        id: source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+          RELEASE_VERSION: ${{ needs.resolve.outputs.release_version }}
+        run: |
+          set -Eeuo pipefail
+          source_sha="$(git rev-parse --verify 'HEAD^{commit}')"
+          release_pattern='^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'
+          [[ "$source_sha" == "$EXPECTED_SOURCE_SHA" ]]
+          [[ "$RELEASE_VERSION" =~ $release_pattern ]]
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+          printf 'release_version=%s\n' "$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/amplitude-radar-${{ matrix.service }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=${{ steps.source.outputs.source_sha }}
+
+      - name: Build the local release candidate
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+      - name: Block high and critical final-image vulnerabilities
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        with:
+          scan-type: image
+          image-ref: ghcr.io/${{ github.repository_owner }}/amplitude-radar-${{ matrix.service }}:${{ steps.source.outputs.source_sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Generate the release SBOM
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        with:
+          scan-type: image
+          image-ref: ghcr.io/${{ github.repository_owner }}/amplitude-radar-${{ matrix.service }}:${{ steps.source.outputs.source_sha }}
+          format: cyclonedx
+          output: sbom-${{ matrix.service }}.cdx.json
+
+      - name: Export the exact scanned candidate
+        shell: bash
+        env:
+          REPOSITORY: ghcr.io/${{ github.repository_owner }}/amplitude-radar-${{ matrix.service }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          set -Eeuo pipefail
+          canonical="${REPOSITORY}:${SOURCE_SHA}"
+          docker save "$canonical" | gzip -9 > "candidate-${SERVICE}.tar.gz"
+          sha256sum "candidate-${SERVICE}.tar.gz" > "candidate-${SERVICE}.sha256"
+
+      - name: Upload scanned candidate for the isolated publisher
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+        with:
+          name: candidate-image-${{ matrix.service }}
+          path: |
+            candidate-${{ matrix.service }}.tar.gz
+            candidate-${{ matrix.service }}.sha256
+            sbom-${{ matrix.service }}.cdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-images:
+    name: Publish ${{ matrix.service }}
+    if: ${{ github.event_name == 'push' || inputs.publish }}
+    needs: [resolve, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    environment:
+      name: release
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [web, api, worker]
+    steps:
+      - name: Download the already scanned candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: candidate-image-${{ matrix.service }}
+          path: candidate
+
+      - name: Verify and load the candidate archive
+        shell: bash
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          set -Eeuo pipefail
+          cd candidate
+          sha256sum --check "candidate-${SERVICE}.sha256"
+          gzip -dc "candidate-${SERVICE}.tar.gz" | docker load
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the exact scanned image
+        id: published
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.resolve.outputs.release_version }}
+          REPOSITORY: ghcr.io/${{ github.repository_owner }}/amplitude-radar-${{ matrix.service }}
+          SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+        run: |
+          set -Eeuo pipefail
+          canonical="${REPOSITORY}:${SOURCE_SHA}"
+          docker push "$canonical"
+          if [[ "$RELEASE_VERSION" != "$SOURCE_SHA" ]]; then
+            docker tag "$canonical" "${REPOSITORY}:${RELEASE_VERSION}"
+            docker push "${REPOSITORY}:${RELEASE_VERSION}"
+          fi
+          image_digest="$(docker buildx imagetools inspect "$canonical" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          [[ "$image_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          printf 'image_digest=%s\n' "$image_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign image and attest its SBOM
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.published.outputs.image_digest }}
+          IMAGE_REPOSITORY: ghcr.io/${{ github.repository_owner }}/amplitude-radar-${{ matrix.service }}
+          SBOM_PATH: candidate/sbom-${{ matrix.service }}.cdx.json
+        run: |
+          set -Eeuo pipefail
+          reference="${IMAGE_REPOSITORY}@${IMAGE_DIGEST}"
+          cosign sign --yes "$reference"
+          cosign attest --yes --type cyclonedx --predicate "$SBOM_PATH" "$reference"
+
+      - name: Record release image identity
+        id: manifest
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.published.outputs.image_digest }}
+          RELEASE_VERSION: ${{ needs.resolve.outputs.release_version }}
+          SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          set -Eeuo pipefail
+          release_pattern='^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'
+          sha_pattern='^[a-f0-9]{40}$'
+          digest_pattern='^sha256:[a-f0-9]{64}$'
+          [[ "$RELEASE_VERSION" =~ $release_pattern ]]
+          [[ "$SOURCE_SHA" =~ $sha_pattern ]]
+          [[ "$IMAGE_DIGEST" =~ $digest_pattern ]]
+
+          manifest="release-manifest-${SERVICE}.env"
+          {
+            printf 'RELEASE_VERSION=%s\n' "$RELEASE_VERSION"
+            printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA"
+            printf 'SERVICE=%s\n' "$SERVICE"
+            printf 'IMAGE_DIGEST=%s\n' "$IMAGE_DIGEST"
+          } > "$manifest"
+
+          {
+            printf '### %s image release identity\n\n' "$SERVICE"
+            # shellcheck disable=SC2016
+            printf -- '- Version: `%s`\n' "$RELEASE_VERSION"
+            # shellcheck disable=SC2016
+            printf -- '- Source SHA: `%s`\n' "$SOURCE_SHA"
+            # shellcheck disable=SC2016
+            printf -- '- Digest: `%s`\n' "$IMAGE_DIGEST"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          printf 'release_version=%s\n' "$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          printf 'image_digest=%s\n' "$IMAGE_DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release manifest
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+        with:
+          name: release-manifest-${{ matrix.service }}
+          path: |
+            release-manifest-${{ matrix.service }}.env
+            candidate/sbom-${{ matrix.service }}.cdx.json
+          if-no-files-found: error
+          retention-days: 90

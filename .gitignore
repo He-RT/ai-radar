@@ -1,0 +1,41 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# JavaScript
+node_modules/
+.next/
+.turbo/
+/coverage/
+.coverage
+.coverage.*
+playwright-report/
+test-results/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+
+# local services and generated artifacts
+.data/
+/data/
+dist/
+build/
+*.log
+release-manifest.json
+/.production-smoke.*/
+
+# editor / operating system
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Amplitude Radar backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+Unit=amplitude-radar-backup.service
+
+[Install]
+WantedBy=timers.target

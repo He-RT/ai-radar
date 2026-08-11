@@ -1,0 +1,4 @@
+import type { Metadata } from "next";
+import { PageIntro } from "../../components/atlas";
+export const metadata: Metadata = { title: "提交线索" };
+export default function ContributePage() { return <div className="contentPage"><PageIntro eyebrow="CONTRIBUTE / SOURCE-LED" title="提交可核查的变化">我们优先处理原始来源、明确主张和可说明影响范围的线索。不会因为传播量高而跳过验证。</PageIntro><form className="formLayout"><label>原始来源链接<input type="url" placeholder="https://" required /></label><label>你观察到的具体变化<textarea placeholder="请区分事实、你的解释，以及仍然未知的部分。" required /></label><label>类别<select defaultValue="产品"><option>模型或研究</option><option>产品或 API</option><option>基础设施</option><option>政策、安全或版权</option><option>更正已有条目</option></select></label><label>影响范围（可选）<input type="text" placeholder="例如：自托管开发团队" /></label><button className="button buttonDark" type="submit">提交供审核 <span>→</span></button></form></div>; }

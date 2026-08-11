@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zhenfu.example/contracts/v1/personalized-radar.schema.json",
+  "title": "Zhenfu Radar personalized view v1",
+  "description": "A lens over immutable public facts. The runtime validator compares each fact with its public baseline.",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "knowledge_cutoff", "items"],
+  "properties": {
+    "contract_version": { "const": "1.0.0" },
+    "knowledge_cutoff": {
+      "$ref": "public-facts.schema.json#/$defs/DateTime"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fact", "lens"],
+        "properties": {
+          "fact": {
+            "$ref": "public-facts.schema.json#/$defs/PublicEvent"
+          },
+          "lens": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["relevance", "explanation"],
+            "properties": {
+              "relevance": { "type": "number", "minimum": 0, "maximum": 100 },
+              "explanation": { "type": "string" },
+              "recommended_action": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

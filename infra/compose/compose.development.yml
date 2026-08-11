@@ -1,0 +1,284 @@
+name: amplitude-radar-dev
+
+x-dev-logging: &dev-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-runtime-environment: &runtime-environment
+  RADAR_ENVIRONMENT: development
+  RADAR_LOG_FORMAT: pretty
+  RADAR_PUBLIC_BASE_URL: "http://127.0.0.1:${CADDY_PORT:-8080}"
+  RADAR_CORS_ORIGINS: '["http://127.0.0.1:${CADDY_PORT:-8080}"]'
+  RADAR_SYNTHETIC_REPOSITORY: "true"
+  RADAR_APP_SECRET_KEY: "${RADAR_APP_SECRET_KEY:?RADAR_APP_SECRET_KEY is required}"
+  # Runtime services never receive the bootstrap or migration database credentials.
+  RADAR_DATABASE_URL: "postgresql+psycopg://${POSTGRES_APP_USER:?POSTGRES_APP_USER is required}:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}"
+  RADAR_VALKEY_URL: "redis://:${VALKEY_PASSWORD:?VALKEY_PASSWORD is required}@valkey:6379/0"
+  RADAR_S3_ENDPOINT: http://minio:9000
+  RADAR_S3_ACCESS_KEY: "${RADAR_S3_ACCESS_KEY:?RADAR_S3_ACCESS_KEY is required}"
+  RADAR_S3_SECRET_KEY: "${RADAR_S3_SECRET_KEY:?RADAR_S3_SECRET_KEY is required}"
+  RADAR_S3_BUCKET: "${MINIO_BUCKET:?MINIO_BUCKET is required}"
+  RADAR_S3_PUBLIC_ENDPOINT: "${RADAR_S3_PUBLIC_ENDPOINT:-http://127.0.0.1:9001}"
+  RADAR_SMTP_URL: smtp://mailpit:1025
+  RADAR_LLM_API_KEY: "${RADAR_LLM_API_KEY:-}"
+  RADAR_LLM_BASE_URL: "${RADAR_LLM_BASE_URL:-https://api.openai.com/v1}"
+  RADAR_LLM_MODEL: "${RADAR_LLM_MODEL:?RADAR_LLM_MODEL is required}"
+
+services:
+  caddy:
+    image: "${CADDY_IMAGE:?CADDY_IMAGE is required}"
+    ports:
+      - "127.0.0.1:${CADDY_PORT:-8080}:8080"
+    volumes:
+      - ../caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    networks:
+      - app
+    depends_on:
+      web:
+        condition: service_started
+      api:
+        condition: service_started
+    logging: *dev-logging
+
+  web:
+    image: amplitude-radar-web:dev
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: development
+    command: ["/bin/sh", "-ec", "${WEB_DEV_COMMAND:-pnpm --filter @amplitude/web dev --hostname 0.0.0.0}"]
+    environment:
+      NODE_ENV: development
+      PORT: "3000"
+      NEXT_PUBLIC_API_BASE_URL: /api
+      RADAR_DATA_MODE: api
+      API_ORIGIN: http://api:8000
+    volumes:
+      - ../../apps/web:/app/apps/web
+      - ../../packages/contracts:/app/packages/contracts:ro
+      - web_node_modules:/app/node_modules
+      - web_app_node_modules:/app/apps/web/node_modules
+    networks:
+      - app
+    logging: *dev-logging
+
+  migrate:
+    image: amplitude-radar-api:dev
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: development
+    restart: "no"
+    command: ["/bin/sh", "-ec", "${RADAR_MIGRATE_COMMAND:-uv run alembic upgrade head}"]
+    environment:
+      <<: *runtime-environment
+      # Alembic owns the schema and is the only application workload with DDL rights.
+      RADAR_DATABASE_URL: "postgresql+psycopg://${POSTGRES_MIGRATION_USER:?POSTGRES_MIGRATION_USER is required}:${POSTGRES_MIGRATION_PASSWORD:?POSTGRES_MIGRATION_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}"
+      RADAR_SERVICE_ROLE: migrate
+    volumes:
+      - ../../apps/api:/app
+      - api_venv:/app/.venv
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    logging: *dev-logging
+
+  api:
+    image: amplitude-radar-api:dev
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: development
+    command: ["/bin/sh", "-ec", "${API_DEV_COMMAND:-uv run uvicorn zhenfu_api.main:app --host 0.0.0.0 --port 8000 --reload}"]
+    environment:
+      <<: *runtime-environment
+      RADAR_SERVICE_ROLE: api
+      PORT: "8000"
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      - ../../apps/api:/app
+      - api_venv:/app/.venv
+    networks:
+      - app
+      - data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging: *dev-logging
+
+  worker-ingest:
+    image: amplitude-radar-worker:dev
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: development
+    command: ["/bin/sh", "-ec", "${RADAR_INGEST_WORKER_COMMAND:-uv run python -m zhenfu_api.workers.ingest}"]
+    environment:
+      <<: *runtime-environment
+      RADAR_SERVICE_ROLE: ingest-worker
+      RADAR_SOURCE_CATALOG_PATH: /app/config/sources/ai_radar_sources.json
+    volumes:
+      - ../../apps/api:/app
+      - ../../config:/app/config:ro
+      - api_venv:/app/.venv
+    networks:
+      - data
+      - egress
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging: *dev-logging
+
+  worker-enrichment:
+    image: amplitude-radar-worker:dev
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: development
+    command: ["/bin/sh", "-ec", "${RADAR_ENRICHMENT_WORKER_COMMAND:-uv run python -m zhenfu_api.workers.enrichment}"]
+    environment:
+      <<: *runtime-environment
+      RADAR_SERVICE_ROLE: enrichment-worker
+    volumes:
+      - ../../apps/api:/app
+      - api_venv:/app/.venv
+    networks:
+      - data
+      - egress
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging: *dev-logging
+
+  postgres:
+    image: "${POSTGRES_IMAGE:?POSTGRES_IMAGE is required}"
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required}"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_MIGRATION_USER: "${POSTGRES_MIGRATION_USER:?POSTGRES_MIGRATION_USER is required}"
+      POSTGRES_MIGRATION_PASSWORD: "${POSTGRES_MIGRATION_PASSWORD:?POSTGRES_MIGRATION_PASSWORD is required}"
+      POSTGRES_APP_USER: "${POSTGRES_APP_USER:?POSTGRES_APP_USER is required}"
+      POSTGRES_APP_PASSWORD: "${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD is required}"
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 stores cluster data under a major-version subdirectory.
+      - postgres_data:/var/lib/postgresql
+      - ../postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ../postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - data
+    logging: *dev-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"${POSTGRES_USER}\" -d \"${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  valkey:
+    image: "${VALKEY_IMAGE:?VALKEY_IMAGE is required}"
+    command:
+      - valkey-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - "${VALKEY_PASSWORD:?VALKEY_PASSWORD is required}"
+    ports:
+      - "127.0.0.1:${VALKEY_PORT:-6379}:6379"
+    volumes:
+      - valkey_data:/data
+    networks:
+      - data
+    logging: *dev-logging
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli --no-auth-warning -a \"${VALKEY_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: "${MINIO_IMAGE:?MINIO_IMAGE is required}"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}"
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - data
+    logging: *dev-logging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+
+  minio-init:
+    image: "${MINIO_MC_IMAGE:?MINIO_MC_IMAGE is required}"
+    restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        set -eu;
+        until mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do sleep 2; done;
+        mc mb --ignore-existing "local/$${MINIO_BUCKET}";
+        mc anonymous set none "local/$${MINIO_BUCKET}";
+        policy_file=$$(mktemp);
+        trap 'rm -f "$$policy_file"' EXIT;
+        printf '%s\n' '{' '  "Version": "2012-10-17",' '  "Statement": [' '    {' '      "Effect": "Allow",' '      "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketMultipartUploads"],' '      "Resource": ["arn:aws:s3:::'"$${MINIO_BUCKET}"'"]' '    },' '    {' '      "Effect": "Allow",' '      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"],' '      "Resource": ["arn:aws:s3:::'"$${MINIO_BUCKET}"'/*"]' '    }' '  ]' '}' > "$$policy_file";
+        mc admin user add local "$${RADAR_S3_ACCESS_KEY}" "$${RADAR_S3_SECRET_KEY}";
+        mc admin policy create local radar-app-bucket "$$policy_file" || mc admin policy update local radar-app-bucket "$$policy_file";
+        mc admin policy attach local radar-app-bucket --user "$${RADAR_S3_ACCESS_KEY}"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}"
+      MINIO_BUCKET: "${MINIO_BUCKET:?MINIO_BUCKET is required}"
+      RADAR_S3_ACCESS_KEY: "${RADAR_S3_ACCESS_KEY:?RADAR_S3_ACCESS_KEY is required}"
+      RADAR_S3_SECRET_KEY: "${RADAR_S3_SECRET_KEY:?RADAR_S3_SECRET_KEY is required}"
+    networks:
+      - data
+    depends_on:
+      minio:
+        condition: service_healthy
+    logging: *dev-logging
+
+  mailpit:
+    image: "${MAILPIT_IMAGE:?MAILPIT_IMAGE is required}"
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    environment:
+      MP_MAX_MESSAGES: "1000"
+      MP_SMTP_AUTH_ACCEPT_ANY: "0"
+    networks:
+      - app
+    logging: *dev-logging
+
+networks:
+  app:
+  data:
+    internal: true
+  egress:
+
+volumes:
+  postgres_data:
+  valkey_data:
+  minio_data:
+  web_node_modules:
+  web_app_node_modules:
+  api_venv:

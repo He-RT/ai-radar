@@ -1,0 +1,37 @@
+{
+	email {$CADDY_EMAIL}
+	admin off
+}
+
+(security_headers) {
+	encode zstd gzip
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}
+
+{$CADDY_SITE_ADDRESS} {
+	import security_headers
+	request_body {
+		max_size 64KB
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
+	@api path /api/* /docs* /openapi.json /healthz /readyz
+	handle @api {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

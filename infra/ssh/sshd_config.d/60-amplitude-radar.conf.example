@@ -1,0 +1,12 @@
+# Install as /etc/ssh/sshd_config.d/60-amplitude-radar.conf, validate with sshd -t,
+# then reload ssh. Keep an existing root/admin console session open while doing so.
+Match User radar-deploy
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    AuthenticationMethods publickey
+    AllowTcpForwarding no
+    GatewayPorts no
+    PermitTTY no
+    PermitTunnel no
+    X11Forwarding no
+    PermitUserRC no
