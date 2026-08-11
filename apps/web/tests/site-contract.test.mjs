@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
+import { isArxivUrl } from "../data/source-classification.ts";
 
 const root = new URL("../", import.meta.url);
 const requiredRoutes = ["radar", "events", "stories", "actions", "capabilities", "for-you", "search", "watch", "corrections", "contribute", "settings", "admin"];
@@ -54,4 +55,24 @@ test("container and liveness contracts are present", async () => {
   assert.match(dockerfile, /RADAR_DATA_MODE=api/);
   assert.match(nextConfig, /output:\s*["']standalone["']/);
   assert.match(healthRoute, /status:\s*["']ok["']/);
+});
+
+test("arXiv classification uses the parsed hostname boundary", () => {
+  for (const url of [
+    "https://arxiv.org/abs/2608.00001",
+    "https://export.arxiv.org/api/query?search_query=all:radar",
+    "https://ARXIV.ORG./pdf/2608.00001"
+  ]) {
+    assert.equal(isArxivUrl(url), true, url);
+  }
+
+  for (const url of [
+    "https://evil.example/?next=https://arxiv.org/abs/1",
+    "https://arxiv.org.evil.example/paper",
+    "https://evil-arxiv.org/paper",
+    "https://arxiv.org@evil.example/paper",
+    "not a url"
+  ]) {
+    assert.equal(isArxivUrl(url), false, url);
+  }
 });

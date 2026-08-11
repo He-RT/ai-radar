@@ -23,6 +23,7 @@ import {
   stories as fixtureStories
 } from "./radar";
 import type { ActionRecipe, Briefing, EvidenceState, EventClaim, EventKind, RadarEvent, Source, Story } from "./radar";
+import { isArxivUrl } from "./source-classification";
 
 export type RadarDataMode = "api" | "fixture";
 
@@ -98,7 +99,7 @@ function eventKind(category: string): EventKind {
 function sourceKind(source: PublicEvent["evidence"][number]): Source["kind"] {
   if (source.source_tier === "primary") return "第一方";
   if (source.source_tier === "authoritative") return "监管文件";
-  return source.url.includes("arxiv.org") ? "论文" : "独立报道";
+  return isArxivUrl(source.url) ? "论文" : "独立报道";
 }
 
 function waveform(score: number): number[] {
