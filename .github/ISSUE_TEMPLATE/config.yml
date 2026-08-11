@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://docs.github.com/code-security/security-advisories/working-with-repository-security-advisories/about-repository-security-advisories
+    about: Do not file vulnerabilities publicly. Use the repository's private vulnerability-reporting channel.
+  - name: Operations runbooks
+    url: https://github.com
+    about: Check the repository docs/runbooks directory before opening an operational support issue.

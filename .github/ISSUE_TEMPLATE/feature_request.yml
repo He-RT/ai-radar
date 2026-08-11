@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose an evidence-first product or operational improvement.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Who is blocked, and what decision or action becomes difficult today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the user-visible result, not only a preferred implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and risks
+      description: Include sources, trade-offs, privacy/compliance concerns, and failure modes.
