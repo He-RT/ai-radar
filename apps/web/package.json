@@ -15,12 +15,12 @@
   "dependencies": {
     "@zhenfu/contracts": "workspace:*",
     "next": "16.3.0",
-    "react": "19.0.0",
+    "react": "19.2.8",
     "react-dom": "19.0.0"
   },
   "devDependencies": {
     "@types/node": "22.10.1",
-    "@types/react": "19.0.2",
+    "@types/react": "19.2.18",
     "@types/react-dom": "19.0.2",
     "typescript": "5.7.2"
   }
