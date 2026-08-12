@@ -1,0 +1,9 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { DataModeNotice, EventRow, PageIntro } from "../../../../components/atlas";
+import { getRadarDataset } from "../../../../data/server";
+const labels: Record<string, string> = { company: "公司", model: "模型", tool: "工具", person: "人物", policy: "政策" };
+const normalize = (slug: string) => slug.split("-").map((word) => word[0]?.toUpperCase() + word.slice(1)).join(" ");
+export async function generateMetadata({ params }: { params: Promise<{ type: string; slug: string }> }): Promise<Metadata> { const { type, slug } = await params; return { title: `${normalize(slug)} · ${labels[type] ?? "实体"}` }; }
+export const dynamic = "force-dynamic";
+export default async function EntityPage({ params }: { params: Promise<{ type: string; slug: string }> }) { const { type, slug } = await params; const dataset = await getRadarDataset(); const label = labels[type] ?? "实体"; const name = normalize(slug); const needle = slug.replace(/-/g, " ").toLowerCase(); const events = dataset.events.filter((event) => `${event.title} ${event.summary} ${event.affected.join(" ")}`.toLowerCase().includes(needle)).slice(0, 3); return <div className="contentPage"><DataModeNotice mode={dataset.mode} /><PageIntro eyebrow={`ENTITY / ${label.toUpperCase()}`} title={name} aside={<>覆盖状态：公共信号<br />知识截止：{new Date(dataset.knowledgeCutoff).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</>}>按现实世界对象聚合可追溯变化。该页面不会把搜索结果或品牌宣传自动当作事实。</PageIntro><div className="splitContent"><div><h2>关联事件</h2>{events.length ? <div className="eventList">{events.map((event, index) => <EventRow key={event.slug} event={event} rank={index + 1} compact />)}</div> : <p className="inlineEmpty">当前没有经过审核的关联事件。</p>}</div><aside className="marginNote"><h3>实体资料</h3><p>类型：{label}</p><p>别名、版本与关联关系目前由编辑审核维护。</p><Link href="/contribute" className="textLink">提交补充资料 <span>→</span></Link></aside></div></div>; }

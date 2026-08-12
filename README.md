@@ -8,6 +8,8 @@
 
 仓库处于公开 Beta 的工程建设阶段。核心事实、证据、更正、日报和 API 将免费开放；当前不包含价格、套餐或支付功能。
 
+当前已实现范围与未完成验收以 [实施状态](./docs/IMPLEMENTATION_STATUS.md) 为准；存在页面或接口不代表对应 28 周生产门槛已经通过。
+
 ## 仓库结构
 
 ```text
@@ -23,15 +25,16 @@ daily/          已有日报样例；自动归档最终写入 archive 分支
 前置条件：Node.js 24、pnpm 11、Python 3.13、uv，以及支持 Compose v2 的 Docker 运行时。
 
 ```bash
-cp .env.example .env
+cp infra/env/development.env.example infra/env/development.env
 pnpm bootstrap
-pnpm dev
+pnpm compose:up
 ```
 
 没有 Docker 时仍可运行使用合成数据的前端和 API：
 
 ```bash
 pnpm install
+cp .env.example .env.local
 pnpm --filter @amplitude/web dev
 pnpm api:dev
 ```
@@ -44,7 +47,7 @@ pnpm test
 pnpm build
 ```
 
-这些命令会逐步覆盖 TypeScript、Python、OpenAPI 契约、数据库迁移、领域规则、可访问性和生产构建。
+这些命令覆盖 TypeScript、Python、OpenAPI 漂移、领域规则、信源目录和生产构建。数据库恢复演练、浏览器无障碍复核、容器扫描和签名验证属于发布门禁，在 CI 与运行手册中单独执行，不能由本地 `pnpm check` 代替。
 
 ## 许可证
 

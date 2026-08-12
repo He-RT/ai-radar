@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible defect in Amplitude AI Radar.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not include API keys, access tokens, personal data, unpublished source material, or private URLs.
+        Security vulnerabilities must be reported privately; see the repository Security policy.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: State the observable behavior and its impact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Numbered steps, inputs, and expected behavior.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser/device, app version or Git SHA, and deployment type. Redact private hostnames.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Redact sensitive data before attaching anything.

@@ -1,0 +1,6 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { DataNote, PageIntro } from "../../../components/atlas";
+export const metadata: Metadata = { title: "评分方法" };
+const dimensions = [["25", "能力跃迁", "是否出现明显新能力、科学突破或自主性提升。"], ["20", "影响范围", "影响开发者、消费者、企业或全球产业链的规模。"], ["15", "产业价值", "对收入、成本、商业模式或竞争格局的影响。"], ["15", "意外程度", "是否改变已有判断或市场预期。"], ["15", "战略外溢", "对开源、监管、安全或基础设施的影响。"], ["10", "当下行动性", "今天是否可使用、迁移、购买或规避风险。"]] as const;
+export default function ScoringPage() { return <div className="contentPage"><PageIntro eyebrow="METHODOLOGY / SCORING" title="震幅评分不是热度榜">我们把“可能改变行业的程度”与“当前证据有多可靠”分开算。高分不是推荐，低分也不等于无用。</PageIntro><div className="methodGrid">{dimensions.map(([score, name, text]) => <div key={name}><strong>{score}</strong><h3>{name}</h3><p>{text}</p></div>)}</div><div className="splitContent"><article className="prose"><h2>总分如何使用</h2><p>主榜按震幅降序排列；同分时，可信度高者优先。证据等级 E 不进入主榜。可信度 D 只有在“传闻本身正在引发市场影响”时，才会被显著标记展示。</p><h2>证据如何单独判断</h2><p>A 级是可直接核对的第一方文件、监管材料、可下载代码或权重；B 级包含独立来源交叉确认；C 到 E 逐步代表尚未确认、社区线索与无法回溯的传闻。</p><DataNote>评分会随着可验证事实变化。每次调整都在事件案卷中保留理由和时间。</DataNote></article><aside className="marginNote"><h3>相关方法</h3><Link href="/methodology/coverage">信源覆盖与数据质量 →</Link><p>若你认为评分遗漏了关键维度，请提交可核查的案例。</p><Link href="/contribute" className="textLink">提出方法建议 <span>→</span></Link></aside></div></div>; }

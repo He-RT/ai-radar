@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  infrastructure:
+    name: Infrastructure validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Parse YAML and JSON
+        run: |
+          git ls-files -z 'infra/**/*.yml' 'infra/**/*.yaml' 'infra/**/*.json' '.github/**/*.yml' '.github/**/*.yaml' |
+            xargs -0 ruby -rjson -ryaml -e '
+              ARGV.each do |path|
+                if path.end_with?(".json")
+                  JSON.parse(File.read(path))
+                else
+                  YAML.safe_load(File.read(path), aliases: true)
+                end
+              end
+            '
+
+      - name: Validate curated source registry
+        run: |
+          python3 tools/source_registry/validate.py
+          python3 tools/source_registry/test_validate.py
+
+      - name: Check shell syntax
+        run: |
+          find infra/scripts -type f -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n
+
+      - name: Run ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+          find infra/scripts -type f -name '*.sh' -print0 | xargs -0 -r shellcheck --severity=warning
+
+      - name: Render production Compose
+        run: docker compose --env-file infra/env/ci.env -f infra/compose/compose.production.yml config -q
+
+      - name: Render development Compose without resolving future app paths
+        run: docker compose --env-file infra/env/ci.env -f infra/compose/compose.development.yml config --no-path-resolution -q
+
+  typescript:
+    name: TypeScript lint, test, and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Install and verify TypeScript workspace
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm --filter @amplitude/web lint
+          pnpm --filter @amplitude/web test
+          pnpm --filter @zhenfu/contracts test
+          pnpm --filter @zhenfu/contracts typecheck
+          pnpm --filter @amplitude/web build
+
+  python:
+    name: Python lint, test, and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.12.3"
+
+      - name: Install and verify API with uv
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          uv sync --project apps/api --all-extras --locked
+          uv run --project apps/api ruff check .
+          uv run --project apps/api pytest apps/api/tests tests/integration
+          uv run --project apps/api pyright
+          uv run --project apps/api python -m compileall -q src
+
+  container:
+    name: Container build smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Build required production images
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f apps/web/Dockerfile
+          test -f apps/api/Dockerfile
+          docker build --file apps/web/Dockerfile --target production --tag amplitude-radar-web:ci .
+          docker build --file apps/api/Dockerfile --target production --tag amplitude-radar-api:ci .
+          docker build --file apps/api/Dockerfile --target worker --tag amplitude-radar-worker:ci .
+
+      - name: Smoke-test offline worker catalog task
+        shell: bash
+        run: bash infra/scripts/test-worker-catalog-task-smoke.sh amplitude-radar-worker:ci

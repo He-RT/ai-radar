@@ -1,0 +1,460 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zhenfu.example/contracts/v1/public-facts.schema.json",
+  "title": "Zhenfu Radar public facts v1",
+  "description": "API-shaped public facts. Cross-object evidence and personalization invariants are enforced by the runtime validator.",
+  "x-contract-version": "1.0.0",
+  "$ref": "#/$defs/RadarResponse",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "DateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "PublicationState": {
+      "type": "string",
+      "enum": ["draft", "review", "published", "corrected", "retracted"]
+    },
+    "PublicPublicationState": {
+      "type": "string",
+      "enum": ["published", "corrected"]
+    },
+    "RiskLevel": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "ClaimImportance": {
+      "type": "string",
+      "enum": ["context", "supporting", "key"]
+    },
+    "ConfidenceGrade": {
+      "type": "string",
+      "enum": ["A", "B", "C", "D", "E"]
+    },
+    "EvidenceStatus": {
+      "type": "string",
+      "enum": ["verified", "pending_cross_check", "monitoring", "corrected"]
+    },
+    "EvidenceStance": {
+      "type": "string",
+      "enum": ["supports", "contradicts", "context"]
+    },
+    "SourceTier": {
+      "type": "string",
+      "enum": ["primary", "authoritative", "secondary", "community"]
+    },
+    "Evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source_item_id",
+        "url",
+        "quote",
+        "locator",
+        "stance",
+        "source_tier"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "source_item_id": { "$ref": "#/$defs/Uuid" },
+        "url": { "type": "string", "format": "uri", "minLength": 1 },
+        "quote": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "locator": { "type": "string", "minLength": 1 },
+        "stance": { "$ref": "#/$defs/EvidenceStance" },
+        "source_tier": { "$ref": "#/$defs/SourceTier" }
+      }
+    },
+    "Claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "importance": { "const": "key" } },
+            "required": ["importance"]
+          },
+          "then": {
+            "properties": { "evidence_ids": { "minItems": 1 } }
+          }
+        }
+      ],
+      "required": ["id", "text", "importance", "evidence_ids", "confidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "importance": { "$ref": "#/$defs/ClaimImportance" },
+        "evidence_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Uuid" },
+          "uniqueItems": true
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "ScoreSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "event_id",
+        "score",
+        "components",
+        "algorithm_version",
+        "calculated_at"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "event_id": { "$ref": "#/$defs/Uuid" },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "components": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "algorithm_version": { "type": "string", "minLength": 1 },
+        "calculated_at": { "$ref": "#/$defs/DateTime" }
+      }
+    },
+    "EventVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "event_id",
+        "version",
+        "title",
+        "summary",
+        "claims",
+        "changed_at",
+        "change_note"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "event_id": { "$ref": "#/$defs/Uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string" },
+        "claims": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Claim" }
+        },
+        "changed_at": { "$ref": "#/$defs/DateTime" },
+        "change_note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "PublicEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slug",
+        "title",
+        "summary",
+        "category",
+        "published_at",
+        "updated_at",
+        "state",
+        "risk",
+        "confidence_grade",
+        "evidence_status",
+        "public_version",
+        "claims",
+        "evidence",
+        "source_ids",
+        "score",
+        "tags",
+        "versions"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string" },
+        "category": { "type": "string", "minLength": 1 },
+        "published_at": { "$ref": "#/$defs/DateTime" },
+        "updated_at": { "$ref": "#/$defs/DateTime" },
+        "state": { "$ref": "#/$defs/PublicPublicationState" },
+        "risk": { "$ref": "#/$defs/RiskLevel" },
+        "confidence_grade": { "$ref": "#/$defs/ConfidenceGrade" },
+        "evidence_status": { "$ref": "#/$defs/EvidenceStatus" },
+        "public_version": { "type": "integer", "minimum": 1 },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "contains": {
+            "type": "object",
+            "properties": { "importance": { "const": "key" } },
+            "required": ["importance"]
+          },
+          "items": { "$ref": "#/$defs/Claim" }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Evidence" }
+        },
+        "source_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Uuid" },
+          "uniqueItems": true
+        },
+        "score": {
+          "oneOf": [{ "$ref": "#/$defs/ScoreSnapshot" }, { "type": "null" }]
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "versions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EventVersion" }
+        }
+      }
+    },
+    "ActionRecipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "event_id",
+        "title",
+        "audience",
+        "effort_minutes",
+        "steps",
+        "expected_outcome",
+        "caveats"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "event_id": { "$ref": "#/$defs/Uuid" },
+        "title": { "type": "string", "minLength": 1 },
+        "audience": { "type": "string", "minLength": 1 },
+        "effort_minutes": { "type": "integer", "minimum": 1 },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "expected_outcome": { "type": "string", "minLength": 1 },
+        "caveats": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "BriefingEventSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_schema_version", "event_id", "public_version", "event"],
+      "properties": {
+        "snapshot_schema_version": { "const": 1 },
+        "event_id": { "$ref": "#/$defs/Uuid" },
+        "public_version": { "type": "integer", "minimum": 1 },
+        "event": { "$ref": "#/$defs/PublicEvent" }
+      }
+    },
+    "BriefingSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "briefing_date",
+        "title",
+        "executive_summary",
+        "event_ids",
+        "event_snapshots",
+        "generated_at",
+        "cutoff_at",
+        "state"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "briefing_date": { "type": "string", "format": "date" },
+        "title": { "type": "string", "minLength": 1 },
+        "executive_summary": { "type": "string" },
+        "event_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Uuid" },
+          "uniqueItems": true
+        },
+        "event_snapshots": {
+          "type": "array",
+          "description": "Immutable event envelopes in exactly the same order as event_ids. Envelope identity/version pins and cutoff invariants are enforced by the runtime validator.",
+          "items": { "$ref": "#/$defs/BriefingEventSnapshot" }
+        },
+        "generated_at": {
+          "$ref": "#/$defs/DateTime",
+          "description": "Snapshot generation time; not a substitute for an explicit knowledge cutoff."
+        },
+        "cutoff_at": {
+          "$ref": "#/$defs/DateTime",
+          "description": "Latest instant through which inputs are represented by this immutable briefing."
+        },
+        "state": { "$ref": "#/$defs/PublicationState" }
+      }
+    },
+    "Correction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "event_id", "published_at", "reason", "before", "after"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "event_id": { "$ref": "#/$defs/Uuid" },
+        "published_at": { "$ref": "#/$defs/DateTime" },
+        "reason": { "type": "string", "minLength": 1 },
+        "before": { "type": "string" },
+        "after": { "type": "string" }
+      }
+    },
+    "CoverageSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "period",
+        "total_events",
+        "categories",
+        "source_tiers",
+        "evidence_coverage",
+        "generated_at"
+      ],
+      "properties": {
+        "period": { "type": "string", "minLength": 1 },
+        "total_events": { "type": "integer", "minimum": 0 },
+        "categories": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "source_tiers": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "evidence_coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+        "generated_at": { "$ref": "#/$defs/DateTime" }
+      }
+    },
+    "EventPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "total", "limit", "offset"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PublicEvent" }
+        },
+        "total": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1 },
+        "offset": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ActionRecipePage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "total", "limit", "offset"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ActionRecipe" }
+        },
+        "total": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1 },
+        "offset": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "CorrectionPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "total", "limit", "offset"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Correction" }
+        },
+        "total": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1 },
+        "offset": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_slug", "title", "url"],
+      "properties": {
+        "event_slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "minLength": 1 }
+      }
+    },
+    "Answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answer", "citations", "generated_by"],
+      "properties": {
+        "answer": { "type": "string" },
+        "citations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Citation" }
+        },
+        "generated_by": { "type": "string", "minLength": 1 }
+      }
+    },
+    "RadarResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_at",
+        "knowledge_cutoff",
+        "headline_events",
+        "recommended_actions",
+        "latest_briefing",
+        "coverage"
+      ],
+      "properties": {
+        "generated_at": {
+          "$ref": "#/$defs/DateTime",
+          "description": "Response generation time; not a knowledge-cutoff assertion."
+        },
+        "knowledge_cutoff": {
+          "$ref": "#/$defs/DateTime",
+          "description": "Latest instant through which source inputs are represented in the response."
+        },
+        "headline_events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PublicEvent" }
+        },
+        "recommended_actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ActionRecipe" }
+        },
+        "latest_briefing": {
+          "oneOf": [{ "$ref": "#/$defs/BriefingSnapshot" }, { "type": "null" }]
+        },
+        "coverage": { "$ref": "#/$defs/CoverageSnapshot" }
+      }
+    },
+    "PublicFactEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "knowledge_cutoff", "events"],
+      "properties": {
+        "contract_version": { "const": "1.0.0" },
+        "knowledge_cutoff": {
+          "$ref": "#/$defs/DateTime",
+          "description": "Latest instant through which source inputs were included."
+        },
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PublicEvent" }
+        }
+      }
+    }
+  }
+}

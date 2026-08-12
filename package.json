@@ -1,0 +1,28 @@
+{
+  "name": "amplitude-ai-radar",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.16.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "bootstrap": "pnpm install && uv sync --project apps/api --all-extras",
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test && uv run --project apps/api pytest apps/api/tests tests/integration && python3 tools/source_registry/validate.py >/dev/null && python3 -m unittest tools/source_registry/test_validate.py",
+    "lint": "turbo lint && uv run --project apps/api ruff check .",
+    "typecheck": "turbo typecheck && uv run --project apps/api pyright",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "api:dev": "uv run --project apps/api uvicorn zhenfu_api.main:app --reload --port 8000",
+    "api:test": "uv run --project apps/api pytest",
+    "format": "turbo format && uv run --project apps/api ruff format .",
+    "compose:up": "docker compose --env-file infra/env/development.env -f infra/compose/compose.development.yml up -d --build",
+    "compose:down": "docker compose --env-file infra/env/development.env -f infra/compose/compose.development.yml down",
+    "compose:logs": "docker compose --env-file infra/env/development.env -f infra/compose/compose.development.yml logs -f"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0"
+  }
+}

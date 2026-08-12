@@ -1,0 +1,3 @@
+# Replace only the key material and trailing comment; retain every restriction.
+# Install as /home/radar-deploy/.ssh/authorized_keys with mode 0600.
+restrict,command="/opt/amplitude-radar/infra/scripts/ssh-deploy-gate.sh",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc,no-X11-forwarding ssh-ed25519 REPLACE_WITH_GITHUB_ACTIONS_DEPLOY_PUBLIC_KEY github-actions-amplitude-radar

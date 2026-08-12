@@ -1,0 +1,38 @@
+groups:
+  - name: amplitude-radar-host
+    rules:
+      - alert: ApiTargetDown
+        expr: up{job="api"} == 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: API metrics target is unavailable
+          runbook_url: docs/runbooks/observability.md
+
+      - alert: NodeTargetDown
+        expr: up{job="node"} == 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: Node exporter target is unavailable
+          runbook_url: docs/runbooks/observability.md
+
+      - alert: HostLowMemory
+        expr: node_memory_MemAvailable_bytes < 1073741824
+        for: 10m
+        labels:
+          severity: urgent
+        annotations:
+          summary: Host has less than 1 GiB memory available
+          runbook_url: docs/runbooks/queue-backlog.md
+
+      - alert: HostFilesystemLow
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.15
+        for: 10m
+        labels:
+          severity: urgent
+        annotations:
+          summary: Host filesystem has less than 15 percent free space
+          runbook_url: docs/runbooks/observability.md

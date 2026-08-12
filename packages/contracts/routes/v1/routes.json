@@ -1,0 +1,274 @@
+{
+  "contractVersion": "1.0.0",
+  "apiVersion": "0.1.0",
+  "api": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "audience": "system",
+      "successStatus": 200,
+      "responseContract": "HealthResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/healthz",
+      "audience": "system",
+      "successStatus": 200,
+      "responseContract": "HealthResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/readyz",
+      "audience": "system",
+      "successStatus": 200,
+      "responseContract": "ReadinessResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/radar",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "RadarResponse",
+      "openapiSchema": "RadarResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/events",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "Page<PublicEvent>",
+      "openapiSchema": "Page_Event_"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/events/{slug}",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "PublicEvent",
+      "openapiSchema": "Event"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/actions",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "ActionRecipePage",
+      "openapiSchema": "Page_ActionRecipe_"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/briefings/{briefing_date}.md",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "MarkdownDocument",
+      "responseMediaType": "text/markdown"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/briefings/{briefing_date}",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "BriefingSnapshot",
+      "openapiSchema": "BriefingSnapshot"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/feeds/daily.xml",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "RssDocument",
+      "responseMediaType": "application/rss+xml"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/corrections",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "CorrectionPage",
+      "openapiSchema": "Page_Correction_"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/coverage",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "CoverageSnapshot",
+      "openapiSchema": "CoverageSnapshot"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/search",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "Page<PublicEvent>",
+      "openapiSchema": "Page_Event_"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/ask",
+      "audience": "public",
+      "successStatus": 200,
+      "responseContract": "Answer",
+      "openapiSchema": "Answer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/register",
+      "audience": "identity",
+      "successStatus": 201,
+      "responseContract": "UserPublic",
+      "openapiSchema": "UserPublic"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "audience": "identity",
+      "successStatus": 200,
+      "responseContract": "TokenResponse",
+      "openapiSchema": "TokenResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/me",
+      "audience": "identity",
+      "successStatus": 200,
+      "responseContract": "UserPublic",
+      "openapiSchema": "UserPublic"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/teams",
+      "audience": "identity",
+      "successStatus": 201,
+      "responseContract": "Team",
+      "openapiSchema": "Team"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams",
+      "audience": "identity",
+      "successStatus": 200,
+      "responseContract": "Team[]",
+      "openapiItemSchema": "Team"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/internal/events/{slug}/publication-check",
+      "audience": "editorial",
+      "successStatus": 200,
+      "responseContract": "PublicationCheck",
+      "openapiSchema": "PublicationCheck"
+    }
+  ],
+  "web": [
+    {
+      "path": "/",
+      "sourceFiles": ["apps/web/app/page.tsx"],
+      "dataExports": []
+    },
+    {
+      "path": "/radar",
+      "sourceFiles": [
+        "apps/web/app/radar/page.tsx",
+        "apps/web/components/radar-workspace.tsx"
+      ],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/events",
+      "sourceFiles": ["apps/web/app/events/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/event/[slug]",
+      "sourceFiles": ["apps/web/app/event/[slug]/page.tsx"],
+      "dataExports": ["getRadarDataset", "getEventBySlug"]
+    },
+    {
+      "path": "/for-you",
+      "sourceFiles": ["apps/web/app/for-you/page.tsx"],
+      "dataExports": ["getRadarDataset"],
+      "personalized": true
+    },
+    {
+      "path": "/actions",
+      "sourceFiles": ["apps/web/app/actions/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/action/[slug]",
+      "sourceFiles": ["apps/web/app/action/[slug]/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/stories",
+      "sourceFiles": ["apps/web/app/stories/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/story/[slug]",
+      "sourceFiles": ["apps/web/app/story/[slug]/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/briefings/[date]",
+      "sourceFiles": ["apps/web/app/briefings/[date]/page.tsx"],
+      "dataExports": ["getBriefingDataset"]
+    },
+    {
+      "path": "/search",
+      "sourceFiles": ["apps/web/app/search/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/entity/[type]/[slug]",
+      "sourceFiles": ["apps/web/app/entity/[type]/[slug]/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/teams/[slug]",
+      "sourceFiles": ["apps/web/app/teams/[slug]/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/corrections",
+      "sourceFiles": ["apps/web/app/corrections/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/watch",
+      "sourceFiles": ["apps/web/app/watch/page.tsx"],
+      "dataExports": []
+    },
+    {
+      "path": "/capabilities",
+      "sourceFiles": ["apps/web/app/capabilities/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/contribute",
+      "sourceFiles": ["apps/web/app/contribute/page.tsx"],
+      "dataExports": []
+    },
+    {
+      "path": "/methodology/coverage",
+      "sourceFiles": ["apps/web/app/methodology/coverage/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    },
+    {
+      "path": "/methodology/scoring",
+      "sourceFiles": ["apps/web/app/methodology/scoring/page.tsx"],
+      "dataExports": []
+    },
+    {
+      "path": "/settings",
+      "sourceFiles": ["apps/web/app/settings/page.tsx"],
+      "dataExports": []
+    },
+    {
+      "path": "/admin",
+      "sourceFiles": ["apps/web/app/admin/page.tsx"],
+      "dataExports": ["getRadarDataset"]
+    }
+  ]
+}

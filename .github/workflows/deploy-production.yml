@@ -1,0 +1,104 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Reviewed release version recorded by the release workflow
+        required: true
+        type: string
+      source_sha:
+        description: Exact 40-character source SHA recorded by the release workflow
+        required: true
+        type: string
+      web_image_digest:
+        description: Published web image digest (sha256:<64 lowercase hex characters>)
+        required: true
+        type: string
+      api_image_digest:
+        description: Published API image digest (sha256:<64 lowercase hex characters>)
+        required: true
+        type: string
+      worker_image_digest:
+        description: Published worker image digest (sha256:<64 lowercase hex characters>)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Restricted SSH deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Validate release identity and image digests
+        id: release
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          WEB_IMAGE_DIGEST: ${{ inputs.web_image_digest }}
+          API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
+          WORKER_IMAGE_DIGEST: ${{ inputs.worker_image_digest }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$RELEASE_VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$WEB_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$API_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$WORKER_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          {
+            printf 'release_version=%s\n' "$RELEASE_VERSION"
+            printf 'source_sha=%s\n' "$SOURCE_SHA"
+            printf 'web_image_digest=%s\n' "$WEB_IMAGE_DIGEST"
+            printf 'api_image_digest=%s\n' "$API_IMAGE_DIGEST"
+            printf 'worker_image_digest=%s\n' "$WORKER_IMAGE_DIGEST"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install tightly scoped SSH material
+        shell: bash
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$DEPLOY_SSH_PRIVATE_KEY" && -n "$DEPLOY_SSH_KNOWN_HOSTS" ]]
+          install -d -m 0700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 0600 "$HOME/.ssh/id_ed25519"
+          chmod 0644 "$HOME/.ssh/known_hosts"
+
+      - name: Dispatch forced deployment command
+        shell: bash
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
+          SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
+          WEB_IMAGE_DIGEST: ${{ steps.release.outputs.web_image_digest }}
+          API_IMAGE_DIGEST: ${{ steps.release.outputs.api_image_digest }}
+          WORKER_IMAGE_DIGEST: ${{ steps.release.outputs.worker_image_digest }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$DEPLOY_SSH_HOST" ]]
+          port="${DEPLOY_SSH_PORT:-22}"
+          [[ "$port" =~ ^[0-9]{1,5}$ ]]
+          ssh \
+            -i "$HOME/.ssh/id_ed25519" \
+            -p "$port" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o RequestTTY=no \
+            "radar-deploy@$DEPLOY_SSH_HOST" \
+            "deploy --version $RELEASE_VERSION --source-sha $SOURCE_SHA --web-image-digest $WEB_IMAGE_DIGEST --api-image-digest $API_IMAGE_DIGEST --worker-image-digest $WORKER_IMAGE_DIGEST"

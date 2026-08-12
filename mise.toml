@@ -1,0 +1,8 @@
+[tools]
+node = "24"
+python = "3.13"
+pnpm = "11.16.0"
+uv = "latest"
+
+[env]
+_.file = ".env"
