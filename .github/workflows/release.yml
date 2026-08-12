@@ -97,6 +97,7 @@ jobs:
           corepack enable
           pnpm install --frozen-lockfile
           uv sync --project apps/api --all-extras --locked
+          pnpm --filter @amplitude/web typegen
           pnpm check
           pnpm build
 

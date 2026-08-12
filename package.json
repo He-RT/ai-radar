@@ -8,7 +8,7 @@
     "pnpm": ">=11 <12"
   },
   "scripts": {
-    "bootstrap": "pnpm install && uv sync --project apps/api --all-extras",
+    "bootstrap": "pnpm install && pnpm --filter @amplitude/web typegen && uv sync --project apps/api --all-extras",
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test && uv run --project apps/api pytest apps/api/tests tests/integration && python3 tools/source_registry/validate.py >/dev/null && python3 -m unittest tools/source_registry/test_validate.py",

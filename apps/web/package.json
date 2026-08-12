@@ -7,10 +7,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "typegen": "next typegen",
+    "lint": "next typegen && tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
-    "format": "tsc --noEmit"
+    "format": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@zhenfu/contracts": "workspace:*",
