@@ -11,6 +11,7 @@
 **/*.pyc
 **/node_modules
 **/tsconfig.tsbuildinfo
+**/next-env.d.ts
 .coverage
 apps/api/.coverage
 infra/env/*.env

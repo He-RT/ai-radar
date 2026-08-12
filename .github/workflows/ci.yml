@@ -75,6 +75,7 @@ jobs:
           set -Eeuo pipefail
           corepack enable
           pnpm install --frozen-lockfile
+          pnpm --filter @amplitude/web typegen
           pnpm --filter @amplitude/web lint
           pnpm --filter @amplitude/web test
           pnpm --filter @zhenfu/contracts test

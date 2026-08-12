@@ -12,6 +12,7 @@ fi
 mise trust --quiet
 mise install
 mise exec -- pnpm install --frozen-lockfile=false
+mise exec -- pnpm --filter @amplitude/web typegen
 mise exec -- uv sync --project apps/api --all-extras
 
 if [[ ! -f infra/env/development.env ]]; then
